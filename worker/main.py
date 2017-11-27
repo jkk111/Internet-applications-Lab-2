@@ -10,8 +10,6 @@ log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
 
-i = lizard.analyze_file.analyze_source_code("AllTests.cpp", "int foo(){}")
-
 @app.route('/')
 def index():
     return 'hello1'
@@ -34,7 +32,7 @@ def analyze_file():
       s = file.stream.read().decode('utf-8')
       analysis = lizard.analyze_file.analyze_source_code(name, s)
       read[name] = analysis.average_cyclomatic_complexity
-    except IndexError:
+    except:
       read[name] = 0
   return jsonify(read)
 

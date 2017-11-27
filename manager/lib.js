@@ -11,7 +11,11 @@ const spawn = require('child_process').spawn;
 const spawnSync = require('child_process').spawnSync;
 const path = require('path')
 const mime = require('mime-types')
+const db = require('./db')
 const fs = require('fs');
+
+let repos = {} // maps repo to a session id
+let sessions = {}; // maps a session to a repo on disk
 
 let create_session_id = (len = 16) => {
   return crypto.randomBytes(len / 2).toString('hex')
@@ -83,6 +87,7 @@ class GitMaster {
       if(!this.repo)
         throw new Error("No Repo Set");
       try {
+        await db.create_session(this.session, this.repo)
         console.log("Initializing Docker Workers")
         let res = await request(`${this.worker_host}/start`, {
           qs: {
@@ -107,7 +112,6 @@ class GitMaster {
         if(c !== 0)
           reject();
         this.initialized = true;
-        process.chdir(__dirname + '/' + this.session);
         this.startTime = Date.now()
         resolve();
       })
@@ -119,7 +123,8 @@ class GitMaster {
       throw new Error("Master Not initialized");
     return new Promise((resolve) => {
       let commits = [];
-      let p = spawn('git', ['log', fmt]);
+      let ud = spawnSync('git', [ 'pull' ], { cwd: __dirname + '/' + this.session });
+      let p = spawn('git', ['log', fmt ], { cwd: __dirname + '/' + this.session });
 
       p.stdout.on('data', (d) => {
         let lines = d.toString().split("\n");
@@ -146,6 +151,7 @@ class GitMaster {
     let p = new Promise(async(resolve) => {
       let worker = `${this.workers[wid]}/analyze`;
       let results = {};
+
       while(filelist.length) {
         let file = filelist.pop()
         let filename = path.basename(file)
@@ -172,8 +178,8 @@ class GitMaster {
         if(res[filename] !== undefined) {
           results[file] = res[filename];
         }
-
       }
+
       resolve(results)
     })
 
@@ -239,6 +245,49 @@ class GitMaster {
   }
 }
 
+let init = async(repo, docker = "http://localhost:8181", num_workers = 4) => {
+  if(repos[repo])
+    return repos[repo];
+
+  return new Promise(async(resolve) => {
+    let master = new GitMaster(repo, docker, num_workers);
+    repos[repo] = master.session;
+    sessions[master.session] = master;
+    await master.init();
+    resolve(master.session);
+  })
+}
+
+let commits = async(session) => {
+  let history = await sessions[session].commits;
+  return history;
+}
+
+let analyze = async(session, commit) => {
+  return new Promise(async(resolve) => {
+    // Javascript is single threaded with an event loop
+    // This forces the run time to give up control
+    // to any pending task
+    setImmediate(async() => {
+      let ccn = await sessions[session].analyze(commit)
+      resolve(ccn);
+    })
+  })
+}
+
+let analyze_all = async(session) => {
+  let history = await commits(session);
+  for(var {commit} of history) {
+    await analyze(session, commit);
+  }
+}
+
+let lookup = async(session) => {
+  return new Promise(async(resolve) => {
+    let data = await db.lookup(session);
+  });
+}
+
 let m = new GitMaster('https://github.com/request/request.git', 'http://192.168.0.21:8181', 32)
 m.init().then(async() => {
   let complexity = {};
@@ -260,3 +309,11 @@ m.init().then(async() => {
 
   console.log(complexity)
 })
+
+module.exports = {
+  init,
+  commits,
+  analyze,
+  analyze_all,
+  lookup
+}

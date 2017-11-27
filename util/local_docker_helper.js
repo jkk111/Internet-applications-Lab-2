@@ -1,5 +1,6 @@
 /*
  * Simple script that calls docker commands to setup N instances of a service
+ * Somewhat unique to my setup with regards to networking etc.
  */
 
 let spawn = require('child_process').spawn;
@@ -75,7 +76,7 @@ app.get('/stop', async(req, res) => {
   }
 
   res.send("OK")
-})
+});
 
 app.get('/close', async(req, res) => {
   for(var session in sessions) {
@@ -88,4 +89,4 @@ app.get('/close', async(req, res) => {
   process.exit();
 })
 
-app.listen(8181)
+app.listen(process.env.PORT || 8181)

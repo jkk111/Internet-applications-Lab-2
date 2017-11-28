@@ -17,9 +17,10 @@ db.serialize(() => {
 })
 
 let create_session = (session, repo) => {
-  return new Promise(() => {
+  return new Promise((resolve) => {
     db.serialize(() => {
-      let stmt = db.prepare(`INSERT INTO session (id, repo) VALUES(? ?)`)
+      console.log(session, repo)
+      let stmt = db.prepare(`INSERT INTO session (id, repo) VALUES(?, ?)`)
       stmt.run(session, repo);
       stmt.finalize();
       resolve();
@@ -27,11 +28,11 @@ let create_session = (session, repo) => {
   });
 }
 
-let insert = (session hash, value, nodes, time) => {
+let insert = (session, hash, value, nodes, time) => {
   return new Promise((resolve) => {
     db.serialize(() => {
       let stmt = db.prepare(`INSERT INTO results (session, hash, value, nodes, time) VALUES(?, ?, ?, ?, ?)`)
-      stmt.run(hash, value, nodes, time);
+      stmt.run(session, hash, value, nodes, time);
       stmt.finalize();
       resolve();
     })
@@ -39,9 +40,9 @@ let insert = (session hash, value, nodes, time) => {
 }
 
 let lookup_all = (session) => {
-  return new Promise(() => {
+  return new Promise((resolve) => {
     db.serialize(() => {
-      let stmt = db.prepare(`SELECT * FROM results WHERE session = ?`)
+      let stmt = db.prepare(`SELECT * FROM results WHERE session = "%?%"`)
       stmt.run(session);
       stmt.finalize();
       resolve();
@@ -52,7 +53,7 @@ let lookup_all = (session) => {
 let lookup = (hash) => {
   return new Promise((resolve) => {
     db.serialize(() => {
-      let stmt = db.prepare(`SELECT * FROM results WHERE hash = ?`)
+      let stmt = db.prepare(`SELECT * FROM results WHERE hash = "%?%"`)
       stmt.run(hash);
       stmt.finalize();
       resolve();

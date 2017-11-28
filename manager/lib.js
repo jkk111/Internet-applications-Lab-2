@@ -288,28 +288,6 @@ let lookup = async(session) => {
   });
 }
 
-let m = new GitMaster('https://github.com/request/request.git', 'http://192.168.0.21:8181', 32)
-m.init().then(async() => {
-  let complexity = {};
-  let history = await m.commits;
-  history = history.reverse();
-  for(var {commit} of history) {
-    console.log('Beginning commit', commit)
-    let num = 0;
-    let values = await m.analyze(commit);
-    let ccn = 0;
-    for(var item in values) {
-      ccn += values[item];
-      num++;
-    }
-    complexity[commit] = ccn / num;
-  }
-  await m.close();
-  fs.writeFileSync(__dirname + '/results.json', JSON.stringify(complexity, null, '  '));
-
-  console.log(complexity)
-})
-
 module.exports = {
   init,
   commits,

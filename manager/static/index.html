@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title></title>
+  <script type="text/javascript">
+    addEventListener("DOMContentLoaded", async() => {
+      let qs = location.search.slice(1);
+      let qp = {};
+      let comp = qs.split("&");
+      comp.forEach((pair) => {
+        let kv = pair.split("=");
+        qp[kv[0]] = kv[1]
+      })
+
+      if(qp.session) {
+        let resp = await fetch('/commits?session=' + qp.session);
+        resp = await resp.json();
+        let commits = document.getElementById("commits");
+        for(var i = 0; i < resp.length; i++) {
+          let { commit } = resp[i];
+          let option = document.createElement("option")
+          option.innerText = commit;
+          option.value = commit
+          commits.appendChild(option)
+        }
+      }
+    })
+  </script>
+</head>
+<body>
+  <form>
+    <table>
+      <tbody>
+        <tr>
+          <td><label>Repo</label></td>
+          <td><input type="text" name="repo" /></td>
+        </tr>
+        <tr>
+          <td><label>Docker</label></td>
+          <td><input type="text" name="docker" /></td>
+        </tr>
+        <tr>
+          <td><label>Worker Count</label></td>
+          <td><input type="number" min="1" max="64" value="1" name="num_workers" /></td>
+        </tr>
+        <tr>
+          <td>
+            <select id="commits">
+
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><input type="submit"></td>
+        </tr>
+      </tbody>
+    </table>
+  </form>
+</body>
+</html>

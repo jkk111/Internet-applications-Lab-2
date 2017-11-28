@@ -13,7 +13,10 @@ app.get('/init', async(req, res) => {
 
 app.get('/commits', async(req, res) => {
   let session = req.query.session;
-  let commits = await lib.commits(session)
+  let commits = []
+  try {
+    commits = await lib.commits(session)
+  } catch(e) {}
   res.send({ commits });
 })
 

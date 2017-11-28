@@ -7,7 +7,9 @@ app.use(express.static('./static'))
 
 app.get('/init', async(req, res) => {
   let repo = req.query.repo;
-  let session = await lib.init(repo)
+  let docker = req.query.docker;
+  let num_workers = req.query.num_workers;
+  let session = await lib.init(repo, docker, num_workers)
   res.send({ session })
 })
 

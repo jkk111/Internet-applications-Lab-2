@@ -284,7 +284,7 @@ let analyze_all = async(session) => {
 
 let lookup = async(session) => {
   return new Promise(async(resolve) => {
-    let data = await db.lookup(session);
+    let data = await db.lookup_all(session);
   });
 }
 

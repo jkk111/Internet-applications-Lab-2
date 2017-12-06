@@ -90,3 +90,4 @@ app.get('/close', async(req, res) => {
 })
 
 app.listen(process.env.PORT || 8181)
+app.timeout = 300000;

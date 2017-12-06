@@ -17,6 +17,8 @@ const fs = require('fs');
 let repos = {} // maps repo to a session id
 let sessions = {}; // maps a session to a repo on disk
 
+let status = {};
+
 let create_session_id = (len = 16) => {
   return crypto.randomBytes(len / 2).toString('hex')
 }
@@ -83,6 +85,7 @@ class GitMaster {
   }
 
   async init() {
+    status[this.session] = "BUILD";
     return new Promise(async (resolve, reject) => {
       if(!this.repo)
         throw new Error("No Repo Set");
@@ -95,6 +98,7 @@ class GitMaster {
             count: this.num_workers,
             session: this.session
           },
+          timeout: 300000,
           json: true
         });
         this.workers = res;
@@ -103,7 +107,7 @@ class GitMaster {
       }
 
       console.log("Got %d nodes", this.workers.length)
-
+      status[this.session] = "CLONE"
       let proc = spawn('git', [ 'clone', this.repo, this.session ])
       proc.stdout.pipe(process.stdout)
       proc.stderr.pipe(process.stderr)
@@ -113,6 +117,7 @@ class GitMaster {
           reject();
         this.initialized = true;
         this.startTime = Date.now()
+        status[this.session] = "READY"
         resolve();
       })
     });
@@ -136,7 +141,7 @@ class GitMaster {
             var commit = JSON.parse(line);
             commits.push(commit);
           } catch(e) {
-            console.log(e);
+            // console.log(e);
           }
         }
       });
@@ -148,7 +153,11 @@ class GitMaster {
   }
 
   async work(wid, filelist) {
+    let failed = false;
     let p = new Promise(async(resolve) => {
+      if(failed) {
+        wid = Math.floor(Math.random() * this.workers.length)
+      }
       let worker = `${this.workers[wid]}/analyze`;
       let results = {};
 
@@ -157,6 +166,7 @@ class GitMaster {
         let filename = path.basename(file)
         let res = null;
         try {
+          console.log("%s) %s", filename, worker);
           res = await request(worker, {
             method: 'post',
             formData: {
@@ -171,7 +181,9 @@ class GitMaster {
             json: true
           })
         } catch(e) {
-          console.log(filename, e);
+          // console.log(filename, e);
+          wid = Math.floor(Math.random() * this.workers.length)
+          worker = `${this.workers[wid]}/analyze`;
           filelist.push(file)
           continue;
         }
@@ -192,29 +204,35 @@ class GitMaster {
 
   async analyze(commit) {
     return new Promise(async (resolve) => {
-      let dirty = false;
-      if(commit) {
-        dirty = true;
-        spawnSync('git', ['checkout', commit]);
-      }
+      process.nextTick(async() => {
+        let dirty = false;
+        process.chdir(__dirname + "/" + this.session)
+        if(commit) {
+          dirty = true;
+          spawnSync('git', ['checkout', commit]);
+        }
 
-      let pending = [];
-      let filelist = await build_file_list(process.cwd())
-      console.log("Processing %d files", filelist.length)
-      for(var i = 0; i < this.num_workers; i++) {
-        pending.push(this.work(i, filelist))
-      }
+        let pending = [];
+        process.chdir(__dirname + "/" + this.session)
+        let filelist = await build_file_list(process.cwd())
+        console.log("Processing %d files", filelist.length)
+        for(var i = 0; i < this.num_workers; i++) {
+          pending.push(this.work(i, filelist))
+        }
 
-      let results = {};
+        let results = {};
 
-      for(var entry of pending) {
-        let res = await entry;
-        Object.assign(results, res);
-      }
+        for(var entry of pending) {
+          let res = await entry;
+          Object.assign(results, res);
+        }
 
-      if(dirty)
-        spawnSync('git', ['checkout', 'master']);
-      resolve(results);
+        if(dirty) {
+          process.chdir(__dirname + "/" + this.session)
+          spawnSync('git', ['checkout', 'master']);
+        }
+        resolve(results);
+      })
     })
   }
 
@@ -245,20 +263,19 @@ class GitMaster {
   }
 }
 
-let init = async(repo, docker = "http://localhost:8181", num_workers = 4) => {
+let init = (repo, docker = "http://localhost:8181", num_workers = 4) => {
   if(repos[repo])
     return repos[repo];
 
-  return new Promise(async(resolve) => {
-    let master = new GitMaster(repo, docker, num_workers);
-    repos[repo] = master.session;
-    sessions[master.session] = master;
-    await master.init();
-    resolve(master.session);
-  })
+  let master = new GitMaster(repo, docker, num_workers);
+  repos[repo] = master.session;
+  sessions[master.session] = master;
+  master.init();
+  return master.session
 }
 
 let commits = async(session) => {
+  console.log(sessions);
   let history = await sessions[session].commits;
   return history;
 }
@@ -269,22 +286,29 @@ let analyze = async(session, commit) => {
     // This forces the run time to give up control
     // to any pending task
     setImmediate(async() => {
+      let start = Date.now();
       let ccn = await sessions[session].analyze(commit)
+      let dt = Date.now() - start;
+      db.insert(session, commit, JSON.stringify(ccn), sessions[session].num_workers, dt);
       resolve(ccn);
     })
   })
 }
 
 let analyze_all = async(session) => {
+  console.log(session)
   let history = await commits(session);
+  status[session] = "BUSY";
   for(var {commit} of history) {
     await analyze(session, commit);
   }
+  status[session] = "FINISHED"
 }
 
 let lookup = async(session) => {
   return new Promise(async(resolve) => {
-    let data = await db.lookup_all(session);
+
+    resolve(await db.lookup_all(session));
   });
 }
 
@@ -293,5 +317,6 @@ module.exports = {
   commits,
   analyze,
   analyze_all,
-  lookup
+  lookup,
+  status
 }

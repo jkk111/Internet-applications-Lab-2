@@ -3,7 +3,7 @@ let db = new sql.Database('./data.sql');
 
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS results (
-    session TEXT
+    session TEXT,
     hash TEXT,
     value INT,
     nodes INT,
@@ -32,8 +32,10 @@ let insert = (session, hash, value, nodes, time) => {
   return new Promise((resolve) => {
     db.serialize(() => {
       let stmt = db.prepare(`INSERT INTO results (session, hash, value, nodes, time) VALUES(?, ?, ?, ?, ?)`)
-      stmt.run(session, hash, value, nodes, time);
-      stmt.finalize();
+      stmt.run(session, hash, value, nodes, time, (e) => {
+        if(e) console.log(e);
+        stmt.finalize();
+      });
       resolve();
     })
   })
@@ -42,10 +44,13 @@ let insert = (session, hash, value, nodes, time) => {
 let lookup_all = (session) => {
   return new Promise((resolve) => {
     db.serialize(() => {
-      let stmt = db.prepare(`SELECT * FROM results WHERE session = "%?%"`)
-      stmt.run(session);
-      stmt.finalize();
-      resolve();
+      let stmt = db.prepare(`SELECT * FROM results WHERE session = ?`)
+      stmt.all(session, (e, rows) => {
+
+        stmt.finalize();
+        resolve(rows);
+      });
+
     });
   });
 }
@@ -53,10 +58,13 @@ let lookup_all = (session) => {
 let lookup = (hash) => {
   return new Promise((resolve) => {
     db.serialize(() => {
-      let stmt = db.prepare(`SELECT * FROM results WHERE hash = "%?%"`)
-      stmt.run(hash);
+      console.log("ppare")
+      let stmt = db.prepare(`SELECT * FROM results WHERE hash = ?`)
+      stmt.all(hash, (e, rows) => {
+        stmt.finalize();
+        resolve(rows);
+      });
       stmt.finalize();
-      resolve();
     })
   });
 }

@@ -9,8 +9,13 @@ app.get('/init', async(req, res) => {
   let repo = req.query.repo;
   let docker = req.query.docker;
   let num_workers = req.query.num_workers;
-  let session = await lib.init(repo, docker, num_workers)
+  let session = lib.init(repo, docker, num_workers)
+  console.log(session)
   res.send({ session })
+})
+
+app.get("/status", (req, res) => {
+  res.send(lib.status[req.query.session] || "UNKNOWN!");
 })
 
 app.get('/commits', async(req, res) => {

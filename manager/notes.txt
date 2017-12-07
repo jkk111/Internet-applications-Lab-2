@@ -1,0 +1,11 @@
+// https://github.com/request/request
+32 worker large repo ~ 2k commits - e269d050866a335d
+4 worker large repo ~ 2k commits - b57cb9f0f6ead8f8
+
+// https://github.com/jkk111/Decentralized-Messenger
+32 worker medium repo ~ 200 commits - bd1af42176a74985
+4 worker medium repo ~ 200 commits - 060104c24cf2f278
+
+// https://github.com/jkk111/Remote-Logger
+32 worker smol repo ~ 11 commits - 155657f31db8b0f8
+4 worker smol repo ~ 11 commits - 3948cb781e0172f9

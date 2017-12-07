@@ -10,17 +10,6 @@ log.setLevel(logging.ERROR)
 
 app = Flask(__name__)
 
-@app.route('/')
-def index():
-    return 'hello1'
-
-@app.route('/repo/<path>', methods=['GET'])
-def analyze_repo(path=''):
-  if path == '':
-    return 0
-  run('git clone {} ./repo'.format(path))
-  return 'n/a'
-
 @app.route('/analyze', methods=['POST'])
 def analyze_file():
   files = request.files.getlist('files')

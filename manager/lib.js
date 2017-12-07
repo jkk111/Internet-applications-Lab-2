@@ -47,6 +47,17 @@ let build_dir_list = (dir) => {
   })
 }
 
+let types = [ 'js', 'c', 'cpp', 'cs', 'java', 'swift', 'mm' ]
+
+let valid_type = (s) => {
+  let type = s.indexOf(".") > -1 ? s.slice(s.lastIndexOf(".") + 1) : false
+
+  if(type) {
+    return types.indexOf(type) > -1;
+  }
+  return false;
+}
+
 let build_file_list = (dir, hide_git = true) => {
   return new Promise(async(resolve) => {
     let data = [];
@@ -164,31 +175,33 @@ class GitMaster {
       while(filelist.length) {
         let file = filelist.pop()
         let filename = path.basename(file)
-        let res = null;
-        try {
-          console.log("%s) %s", filename, worker);
-          res = await request(worker, {
-            method: 'post',
-            formData: {
-              files: {
-                value: fs.createReadStream(file, {encoding: 'utf8'}),
-                options: {
-                  filename: filename,
-                  contentType: mime.lookup(filename) || 'text/html'
+        if(valid_type(filename)) {
+          let res = null;
+          try {
+            console.log("%s) %s", filename, worker);
+            res = await request(worker, {
+              method: 'post',
+              formData: {
+                files: {
+                  value: fs.createReadStream(file, {encoding: 'utf8'}),
+                  options: {
+                    filename: filename,
+                    contentType: mime.lookup(filename) || 'text/html'
+                  }
                 }
-              }
-            },
-            json: true
-          })
-        } catch(e) {
-          // console.log(filename, e);
-          wid = Math.floor(Math.random() * this.workers.length)
-          worker = `${this.workers[wid]}/analyze`;
-          filelist.push(file)
-          continue;
-        }
-        if(res[filename] !== undefined) {
-          results[file] = res[filename];
+              },
+              json: true
+            })
+          } catch(e) {
+            // console.log(filename, e);
+            wid = Math.floor(Math.random() * this.workers.length)
+            worker = `${this.workers[wid]}/analyze`;
+            filelist.push(file)
+            continue;
+          }
+          if(res[filename] !== undefined) {
+            results[file] = res[filename];
+          }
         }
       }
 
@@ -288,8 +301,19 @@ let analyze = async(session, commit) => {
     setImmediate(async() => {
       let start = Date.now();
       let ccn = await sessions[session].analyze(commit)
+
+      let files = 0;
+      let tccn = 0;
+
+      for(var file in ccn) {
+        if(ccn[file] !== 0) {
+          files++;
+          tccn += ccn[file]
+        }
+      }
+
       let dt = Date.now() - start;
-      db.insert(session, commit, JSON.stringify(ccn), sessions[session].num_workers, dt);
+      db.insert(session, commit, files > 0 ? tccn / files : 0, sessions[session].num_workers, dt);
       resolve(ccn);
     })
   })
@@ -298,9 +322,11 @@ let analyze = async(session, commit) => {
 let analyze_all = async(session) => {
   console.log(session)
   let history = await commits(session);
-  status[session] = "BUSY";
+  let remaining = history.length;
+  status[session] = "BUSY - " + remaining--;
   for(var {commit} of history) {
     await analyze(session, commit);
+  status[session] = "BUSY - " + remaining--;
   }
   status[session] = "FINISHED"
 }
